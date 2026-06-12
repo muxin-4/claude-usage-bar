@@ -97,11 +97,29 @@ def fail(msg):
 try:
     d = json.loads(os.environ.get("RESP", ""))
 except Exception:
-    fail("接口请求失败（检查网络/代理）")
+    d = None
 
-if "five_hour" not in d:
+if d is not None and "five_hour" not in d:
     # 多半是 token 过期返回了错误体；打开 Claude Code 用一下会自动续期
     fail("登录态过期？打开一次 Claude Code 用一下即可续期")
+
+# 网络瞬断时不清空菜单栏：成功的响应落盘，失败时降级显示旧数据（灰点标记）
+CACHE = os.path.expanduser("~/.cache/claude-usage-bar/last.json")
+stale_at = None  # 非 None = 正在显示缓存旧数据，值为缓存时间
+if d is None:
+    try:
+        with open(CACHE) as f:
+            c = json.load(f)
+        d, stale_at = c["data"], datetime.datetime.fromisoformat(c["at"])
+    except Exception:
+        fail("接口请求失败（检查网络/代理）")
+else:
+    try:
+        os.makedirs(os.path.dirname(CACHE), exist_ok=True)
+        with open(CACHE, "w") as f:
+            json.dump({"at": datetime.datetime.now().astimezone().isoformat(), "data": d}, f)
+    except Exception:
+        pass  # 缓存写失败不影响正常显示
 
 def pct(x):
     if x and x.get("utilization") is not None:
@@ -126,6 +144,7 @@ COLORS = {
     "blue": "#2A78D6",
     "yellow": "#FAB219",
     "red": "#C14842",
+    "gray": "#8E8E93",  # 降级显示旧数据时的标记色
 }
 
 def level(p):
@@ -160,8 +179,8 @@ def circle_png(hex_color, size=24):
 
 _dot_cache = {}
 
-def dot(p):
-    color = COLORS[level(p)]
+def dot(p, color=None):
+    color = color or COLORS[level(p)]
     if color not in _dot_cache:
         _dot_cache[color] = circle_png(color)
     return f" | image={_dot_cache[color]} width=12 height=12"
@@ -171,8 +190,11 @@ def dot(p):
 title = f"已用{s or 0}%"
 if rs:
     title += f" ↻{rs.strftime('%H:%M')}"
-print(f"{title}{dot(s)}")
+print(f"{title}{dot(s, COLORS['gray'] if stale_at else None)}")
 print("---")
+if stale_at:
+    ago = (stale_at.strftime("%m-%d ") if stale_at.date() != now.date() else "") + stale_at.strftime("%H:%M")
+    print(f"⚠️ 接口请求失败，以下是 {ago} 的旧数据")
 
 def fmt_session(t):
     days = (t.date() - now.date()).days
@@ -190,7 +212,10 @@ son = pct(d.get("seven_day_sonnet"))
 if son is not None:
     print(f"Sonnet 单独额度：已用 {son}%")
 print("---")
-print(f"更新于 {now.strftime('%H:%M')} · 点此立即刷新 | refresh=true")
+if stale_at:
+    print("接口失败中 · 点此重试 | refresh=true")
+else:
+    print(f"更新于 {now.strftime('%H:%M')} · 点此立即刷新 | refresh=true")
 print("打开 claude.ai 用量页 | href=https://claude.ai/settings/usage")
 print("---")
 print(f'退出 | shell="{os.environ.get("PLUGIN_PATH", "")}" param1=quit terminal=false')
