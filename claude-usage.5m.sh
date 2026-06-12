@@ -109,12 +109,15 @@ def pct(x):
     return None
 
 def local(ts):
+    # 窗口空闲（夜里没用/打满后窗口到期）时接口返回 resets_at: null，必须容错
+    if not ts:
+        return None
     return datetime.datetime.fromisoformat(ts).astimezone()
 
 now = datetime.datetime.now().astimezone()
 s, w = pct(d["five_hour"]), pct(d["seven_day"])
 
-rs, rw = local(d["five_hour"]["resets_at"]), local(d["seven_day"]["resets_at"])
+rs, rw = local(d["five_hour"].get("resets_at")), local(d["seven_day"].get("resets_at"))
 wd = "一二三四五六日"
 
 # 三色阈值：蓝 <60 / 黄 60–84 / 红 ≥85（红档对齐官方 Approaching limit 警告区间）
@@ -164,7 +167,10 @@ def dot(p):
     return f" | image={_dot_cache[color]} width=12 height=12"
 
 # 标题：已用% + 当前 5 小时窗口的重置时间；圆点按 session/周 中更差的那个亮灯
-print(f"已用{s}% ↻{rs.strftime('%H:%M')}{dot(max(s or 0, w or 0))}")
+title = f"已用{s or 0}%"
+if rs:
+    title += f" ↻{rs.strftime('%H:%M')}"
+print(f"{title}{dot(max(s or 0, w or 0))}")
 print("---")
 
 def fmt_session(t):
@@ -172,8 +178,13 @@ def fmt_session(t):
     prefix = "" if days == 0 else ("明天 " if days == 1 else t.strftime("%m-%d "))
     return prefix + t.strftime("%H:%M")
 
-print(f"当前 session：已用 {s}%（{fmt_session(rs)} 重置）{dot(s)}")
-print(f"本周额度：已用 {w}%（周{wd[rw.weekday()]} {rw.strftime('%H:%M')} 重置）{dot(w)}")
+sess = f"当前 session：已用 {s or 0}%"
+sess += f"（{fmt_session(rs)} 重置）" if rs else "（空闲）"
+print(f"{sess}{dot(s)}")
+week = f"本周额度：已用 {w or 0}%"
+if rw:
+    week += f"（周{wd[rw.weekday()]} {rw.strftime('%H:%M')} 重置）"
+print(f"{week}{dot(w)}")
 son = pct(d.get("seven_day_sonnet"))
 if son is not None:
     print(f"Sonnet 单独额度：已用 {son}%")
