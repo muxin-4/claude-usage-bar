@@ -166,11 +166,12 @@ def dot(p):
         _dot_cache[color] = circle_png(color)
     return f" | image={_dot_cache[color]} width=12 height=12"
 
-# 标题：已用% + 当前 5 小时窗口的重置时间；圆点按 session/周 中更差的那个亮灯
+# 标题：已用% + 当前 5 小时窗口的重置时间；圆点只看 5 小时窗口
+# （周额度状态在下拉里有自己的圆点，不在标题抢戏）
 title = f"已用{s or 0}%"
 if rs:
     title += f" ↻{rs.strftime('%H:%M')}"
-print(f"{title}{dot(max(s or 0, w or 0))}")
+print(f"{title}{dot(s)}")
 print("---")
 
 def fmt_session(t):
