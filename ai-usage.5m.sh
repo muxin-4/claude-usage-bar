@@ -214,24 +214,16 @@ def parse_codex(raw):
 claude = parse_claude(os.environ.get("CLAUDE_RESP", ""))
 codex = parse_codex(os.environ.get("CODEX_RESP", ""))
 
-# ── 标题：C<claude>% ↻时间  Cx<codex>% ↻时间（Claude 在前，带 5 小时窗口重置时间）──
-# 文字默认色；一个圆点表达整体预警（取两边 5 小时窗口里更高档位，与"标题只看 5 小时"一致）。
-def title_seg(label, info):
+# ── 标题：<claude>% 时间  <codex>% 时间（左 Claude 右 Codex，纯文字无圆点无前缀）──
+# 靠左右位置区分两个产品；颜色预警放到下拉里的圆点，标题保持干净易读。
+def title_seg(info):
     if info.get("err") and info.get("s") is None:
-        return f"{label}–"
+        return "–"
     t = info.get("rs")
-    r = f" ↻{t.strftime('%H:%M')}" if t else ""
-    return f"{label}{info.get('s') or 0}%{r}"
+    r = f" {t.strftime('%H:%M')}" if t else ""
+    return f"{info.get('s') or 0}%{r}"
 
-fivep = [v for v in (claude.get("s"), codex.get("s")) if v is not None]
-any_stale = claude.get("stale_at") or codex.get("stale_at")
-if not fivep:
-    head_dot = dot(color=COLORS["gray"])
-elif any_stale:
-    head_dot = dot(color=COLORS["gray"])   # 有旧数据时整体置灰提示不全新
-else:
-    head_dot = dot(max(fivep))
-print(f"{title_seg('C', claude)}  {title_seg('Cx', codex)}{head_dot}")
+print(f"{title_seg(claude)}  {title_seg(codex)}")
 print("---")
 
 # ── 下拉：每个产品一段，文字默认色，行尾圆点按各自档位上色 ──
